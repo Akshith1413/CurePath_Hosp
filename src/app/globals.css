@@ -1,0 +1,210 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.5);
+  --radius-4xl: calc(var(--radius) * 3);
+}
+
+:root {
+  --background: oklch(0.96 0.008 220); /* Premium soft cool slate/grey background */
+  --foreground: oklch(0.2 0.03 240);    /* Soft dark slate */
+  --card: oklch(1 0 0 / 85%);           /* More opaque glassy white */
+  --card-foreground: oklch(0.2 0.03 240);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.03 240);
+  --primary: oklch(0.52 0.19 245);       /* Premium Healthcare Royal Blue */
+  --primary-foreground: oklch(0.99 0.005 220);
+  --secondary: oklch(0.68 0.16 195);     /* Secure Fintech Teal/Cyan */
+  --secondary-foreground: oklch(0.2 0.03 240);
+  --muted: oklch(0.93 0.01 240);
+  --muted-foreground: oklch(0.48 0.02 240);
+  --accent: oklch(0.94 0.02 240 / 80%);
+  --accent-foreground: oklch(0.2 0.03 240);
+  --destructive: oklch(0.6 0.18 20);
+  --border: oklch(0.85 0.01 240 / 80%);  /* More defined border color */
+  --input: oklch(0.93 0.01 240 / 70%);
+  --ring: oklch(0.52 0.19 245 / 50%);
+  --radius: 0.85rem;                     /* Generously rounded corners for modern SaaS aesthetic */
+}
+
+.dark {
+  --background: oklch(0.12 0.02 245);
+  --foreground: oklch(0.96 0.01 240);
+  --card: oklch(0.16 0.02 245 / 65%);
+  --card-foreground: oklch(0.96 0.01 240);
+  --popover: oklch(0.14 0.02 245);
+  --popover-foreground: oklch(0.96 0.01 240);
+  --primary: oklch(0.64 0.18 240);       /* Vibrant Indigo/Blue in dark mode */
+  --primary-foreground: oklch(0.12 0.02 245);
+  --secondary: oklch(0.72 0.15 190);     /* Cyber Teal */
+  --secondary-foreground: oklch(0.12 0.02 245);
+  --muted: oklch(0.2 0.02 245);
+  --muted-foreground: oklch(0.7 0.01 240);
+  --accent: oklch(0.22 0.02 245 / 80%);
+  --accent-foreground: oklch(0.96 0.01 240);
+  --destructive: oklch(0.5 0.18 20);
+  --border: oklch(0.26 0.02 245 / 35%);
+  --input: oklch(0.26 0.02 245 / 50%);
+  --ring: oklch(0.64 0.18 240 / 40%);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/40 transition-colors duration-200;
+  }
+  body {
+    @apply bg-background text-foreground selection:bg-primary/20 selection:text-primary overflow-x-hidden antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Glassmorphism custom classes */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.04),
+              0 2px 4px 0 rgba(0, 0, 0, 0.01),
+              inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.dark .glass-panel {
+  background: rgba(20, 27, 45, 0.55);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2),
+              inset 0 1px 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 8px 24px 0 rgba(149, 157, 165, 0.12),
+              0 2px 4px 0 rgba(0, 0, 0, 0.01),
+              inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
+}
+
+.dark .glass-card {
+  background: rgba(25, 33, 54, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.15),
+              inset 0 1px 0 0 rgba(255, 255, 255, 0.03);
+}
+
+.text-gradient-primary {
+  background: linear-gradient(135deg, oklch(0.52 0.19 245) 0%, oklch(0.68 0.16 195) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.dark .text-gradient-primary {
+  background: linear-gradient(135deg, oklch(0.7 0.15 230) 0%, oklch(0.72 0.15 190) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Animations */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px 2px rgba(84, 137, 248, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 25px 5px rgba(84, 137, 248, 0.25);
+  }
+}
+
+@keyframes grid-move {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 40px 40px;
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 8s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s infinite;
+}
+
+.grid-background {
+  background-image: 
+    linear-gradient(rgba(84, 137, 248, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(84, 137, 248, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: grid-move 20s linear infinite;
+}
+
+.dark .grid-background {
+  background-image: 
+    linear-gradient(rgba(84, 137, 248, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(84, 137, 248, 0.015) 1px, transparent 1px);
+}
