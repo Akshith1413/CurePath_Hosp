@@ -749,7 +749,7 @@ export default function Dashboard() {
                       {allAppointments && allAppointments.length > 0 ? allAppointments.slice(0, 5).map((row: any, i: number) => (
                         <tr key={i} className="hover:bg-muted/20 transition-colors">
                           <td className="px-6 py-4">
-                            <div className="font-bold text-foreground">{row.patient_name || row.patientName || "Unknown"}</div>
+                            <div className="font-bold text-foreground">{row.patients?.patient_name || row.patient_name || row.patientName || "Unknown"}</div>
                             <div className="text-[10px] text-muted-foreground font-mono">{row.patient_id || row.id}</div>
                           </td>
                           <td className="px-6 py-4 font-medium text-muted-foreground">{row.doctors?.doctor_name || row.doctorName || "Unassigned"}</td>
@@ -792,7 +792,7 @@ export default function Dashboard() {
           {activeTab === "doctors" && <DoctorsModule initialSearchQuery={doctorSearchFilter} onDataChange={handleDataChange} />}
 
           {/* APPOINTMENT MANAGEMENT MODULE */}
-          {activeTab === "appointments" && <AppointmentsModule initialSearchQuery={appointmentSearchFilter} />}
+          {activeTab === "appointments" && <AppointmentsModule initialSearchQuery={appointmentSearchFilter} onDataChange={handleDataChange} />}
 
           {/* EMERGENCY MANAGEMENT MODULE */}
           {activeTab === "emergency" && <EmergencyModule initialSearchQuery={emergencySearchFilter} />}

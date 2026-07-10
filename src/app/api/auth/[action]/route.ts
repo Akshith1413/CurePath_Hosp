@@ -18,8 +18,8 @@ const generateToken = (id: string) => {
   );
 };
 
-export async function POST(req: Request, context: { params: Promise<{ action: string }> }) {
-  const { action } = await context.params;
+export async function POST(req: Request, { params }: { params: Promise<{ action: string }> }) {
+  const { action } = await params;
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -47,8 +47,8 @@ export async function POST(req: Request, context: { params: Promise<{ action: st
   }
 }
 
-export async function GET(req: Request, context: { params: Promise<{ action: string }> }) {
-  const { action } = await context.params;
+export async function GET(req: Request, { params }: { params: Promise<{ action: string }> }) {
+  const { action } = await params;
   if (action === "me") {
     const authRes = await protect(req);
     if (authRes.error) return authErrorResponse(authRes.error, authRes.status);

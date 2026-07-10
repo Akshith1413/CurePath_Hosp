@@ -62,6 +62,7 @@ export function DoctorsModule({ initialSearchQuery = "", onDataChange }: { initi
   const [newPatientUid, setNewPatientUid] = React.useState("");
   const [qualificationInput, setQualificationInput] = React.useState("");
   const [specializationInput, setSpecializationInput] = React.useState("");
+  const [formError, setFormError] = React.useState<string | null>(null);
   const QUALIFICATIONS = ["MBBS", "MD", "DO", "MS", "DNB", "FRCS", "MRCP"];
   const SPECIALIZATIONS = ["Cardiology", "Neurology", "Orthopedics", "Pediatrics", "Oncology", "General Medicine", "Dermatology"];
   // Global Search State
@@ -140,6 +141,7 @@ export function DoctorsModule({ initialSearchQuery = "", onDataChange }: { initi
 
   const handleOpenAdd = () => {
     setEditingDoctor(null);
+    setFormError(null);
     setFormData({
       verificationStatus: "Pending",
       assignedPatients: [],
@@ -167,6 +169,18 @@ export function DoctorsModule({ initialSearchQuery = "", onDataChange }: { initi
   // removed upload function
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+
+    // Validations
+    if (formData.contactNumber && !/^\d{10}$/.test(formData.contactNumber)) {
+      setFormError("Contact number must be exactly 10 digits.");
+      return;
+    }
+    if (formData.licenseNumber && !/^MED-[a-zA-Z0-9]+$/.test(formData.licenseNumber)) {
+      setFormError("Medical License Number must follow format 'MED-XXXXX'.");
+      return;
+    }
+
     const payload = {
       doctor_name: formData.name,
       specialization: formData.specialization,
@@ -373,6 +387,12 @@ export function DoctorsModule({ initialSearchQuery = "", onDataChange }: { initi
             </div>
             
             <form onSubmit={handleFormSubmit} className="p-6 space-y-6">
+              
+              {formError && (
+                <div className="p-3 mb-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-sm font-semibold flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4" /> {formError}
+                </div>
+              )}
 
               {!editingDoctor && (
                 <div className="bg-primary/5 p-4 rounded-xl border border-primary/20 space-y-3 mb-4">
@@ -544,7 +564,7 @@ export function DoctorsModule({ initialSearchQuery = "", onDataChange }: { initi
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-muted-foreground">Contact Number</label>
-                  <input type="tel" required value={formData.contactNumber || ""} onChange={e => setFormData({...formData, contactNumber: e.target.value})} className="w-full h-11 px-4 bg-background/50 border border-border/60 rounded-xl text-sm focus:outline-none focus:border-primary" placeholder="10-digit number" />
+                  <input type="tel" required value={formData.contactNumber || ""} onChange={e => setFormData({...formData, contactNumber: e.target.value.replace(/\D/g, '')})} maxLength={10} className="w-full h-11 px-4 bg-background/50 border border-border/60 rounded-xl text-sm focus:outline-none focus:border-primary" placeholder="10-digit number" />
                 </div>
 
                 {/* Upload section removed */}

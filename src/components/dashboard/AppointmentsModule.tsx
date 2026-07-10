@@ -41,7 +41,7 @@ interface Appointment {
 }
 
 // --- Mock Data Fallback ---
-export function AppointmentsModule({ initialSearchQuery = "" }: { initialSearchQuery?: string }) {
+export function AppointmentsModule({ initialSearchQuery = "", onDataChange }: { initialSearchQuery?: string, onDataChange?: () => void }) {
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
   const [patientsList, setPatientsList] = React.useState<{id: string, name: string}[]>([]);
   const [doctorsList, setDoctorsList] = React.useState<{id: string, name: string}[]>([]);
@@ -63,9 +63,65 @@ export function AppointmentsModule({ initialSearchQuery = "" }: { initialSearchQ
   const [viewingAppointment, setViewingAppointment] = React.useState<Appointment | null>(null);
 
   // Form State
-  const [formData, setFormData] = React.useState<Partial<Appointment>>({});
+  const [formData, setFormData] = React.useState<Partial<Appointment> & { icuCondition?: string; nurseAssigned?: string }>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
+
+  // Settings
+  const [hospitalOpenTime] = React.useState("09:00 AM");
+  const [hospitalCloseTime] = React.useState("06:00 PM");
+
+  // Helper for parsing time
+  const parseTime = (timeStr: string) => {
+    if (!timeStr) return 0;
+    let [time, period] = timeStr.split(" ");
+    if (!time || !period) return 0;
+    let [h, m] = time.split(":").map(Number);
+    if (period === "PM" && h !== 12) h += 12;
+    if (period === "AM" && h === 12) h = 0;
+    return h * 60 + (m || 0);
+  };
+
+  const formatTime = (minutes: number) => {
+    let h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    const period = h >= 12 ? "PM" : "AM";
+    if (h > 12) h -= 12;
+    if (h === 0) h = 12;
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")} ${period}`;
+  };
+
+  const generateTimeSlots = (date: string, doctorId: string) => {
+    const startMin = parseTime(hospitalOpenTime);
+    const endMin = parseTime(hospitalCloseTime);
+    const slots = [];
+    
+    // Get current time to block past slots if date is today
+    const now = new Date();
+    const isToday = date === now.toISOString().split("T")[0];
+    const currentMin = now.getHours() * 60 + now.getMinutes();
+
+    for (let m = startMin; m < endMin; m += 15) {
+      if (isToday && m <= currentMin) continue;
+      
+      const timeStr = formatTime(m);
+      // Check for conflicts
+      const conflict = appointments.find(a => 
+        a.date === date && 
+        a.doctorId === doctorId && 
+        a.time === timeStr && 
+        a.status !== "Cancelled" &&
+        (!editingAppointment || a.id !== editingAppointment.id)
+      );
+
+      slots.push({
+        time: timeStr,
+        available: !conflict,
+        conflictPatient: conflict ? conflict.patientName : null
+      });
+    }
+    return slots;
+  };
 
   // --- Fetch Appointments from Backend ---
   const fetchAppointments = async () => {
@@ -135,7 +191,18 @@ export function AppointmentsModule({ initialSearchQuery = "" }: { initialSearchQ
     if (e) e.stopPropagation();
     setEditingAppointment(appointment);
     setFormError(null);
-    setFormData({ ...appointment });
+    let icuCondition = "";
+    let nurseAssigned = "";
+    let diagnosis = appointment.diagnosis;
+    if (appointment.type === "ICU" && diagnosis.includes("[ICU]")) {
+      const parts = diagnosis.split(" | Nurse: ");
+      icuCondition = parts[0].replace("[ICU] ", "");
+      if (parts.length > 1) {
+        nurseAssigned = parts[1];
+        diagnosis = "Critical Care";
+      }
+    }
+    setFormData({ ...appointment, icuCondition, nurseAssigned, diagnosis: appointment.type === "ICU" ? diagnosis : appointment.diagnosis });
     setIsFormOpen(true);
   };
 
@@ -178,7 +245,7 @@ export function AppointmentsModule({ initialSearchQuery = "" }: { initialSearchQ
       patient_id: formData.patientId,
       doctor_id: formData.doctorId,
       appointment_type: formData.type === "Follow-up" ? "FOLLOW_UP" : formData.type?.toUpperCase() || "REGULAR",
-      diagnosis: formData.diagnosis,
+      diagnosis: formData.type === "ICU" ? `[ICU] ${formData.icuCondition || 'Critical'} | Nurse: ${formData.nurseAssigned || 'Unassigned'}` : formData.diagnosis,
       medication: formData.medication,
       treatment_duration: formData.treatmentDuration,
       appointment_date: formData.date,
@@ -203,7 +270,6 @@ export function AppointmentsModule({ initialSearchQuery = "" }: { initialSearchQ
       } catch (err: any) {
         setFormError(err.message || "Failed to update appointment");
       }
-    } else {
       try {
         const res = await apiFetch("/appointments", {
           method: "POST",
@@ -212,6 +278,7 @@ export function AppointmentsModule({ initialSearchQuery = "" }: { initialSearchQ
         if (res.success) {
           fetchAppointments();
           setIsFormOpen(false);
+          if (onDataChange) onDataChange();
         } else {
           setFormError(res.error || "Failed to schedule appointment");
         }
@@ -235,21 +302,25 @@ export function AppointmentsModule({ initialSearchQuery = "" }: { initialSearchQ
     return matchesSearch && matchesType;
   });
 
-  // Group for calendar view (by day or simple timeline)
   // We will build a simple timeline view of today's appointments sorted by time
+  const todayStr = new Date().toISOString().split("T")[0];
   const todayAppointments = filteredAppointments
-    .filter(a => a.date === "2026-06-28")
-    .sort((a, b) => {
-      // Very basic time string sorting for mock AM/PM
-      const getVal = (t: string) => {
-        let [hr, min] = t.split(" ")[0].split(":");
-        let h = parseInt(hr);
-        if (t.includes("PM") && h !== 12) h += 12;
-        if (t.includes("AM") && h === 12) h = 0;
-        return h * 60 + parseInt(min);
-      };
-      return getVal(a.time) - getVal(b.time);
+    .filter(a => a.date === todayStr)
+    .sort((a, b) => parseTime(a.time) - parseTime(b.time));
+
+  // Generate a full day timeline grid
+  const timelineGrid = [];
+  const startMin = parseTime(hospitalOpenTime);
+  const endMin = parseTime(hospitalCloseTime);
+  for (let m = startMin; m < endMin; m += 15) {
+    const tStr = formatTime(m);
+    const aptsAtTime = todayAppointments.filter(a => a.time === tStr && a.status !== "Cancelled");
+    timelineGrid.push({
+      time: tStr,
+      minutes: m,
+      appointments: aptsAtTime
     });
+  }
 
   const getTypeStyle = (type: AppointmentType) => {
     switch (type) {
@@ -402,56 +473,74 @@ export function AppointmentsModule({ initialSearchQuery = "" }: { initialSearchQ
         {/* --- TIMELINE / CALENDAR VIEW --- */}
         {viewMode === "calendar" && (
           <div className="p-6">
-            <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
-              <CalendarDays className="h-5 w-5 text-primary" /> Today's Queue (June 28, 2026)
-            </h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                <CalendarDays className="h-5 w-5 text-primary" /> Today's Timeline ({new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })})
+              </h3>
+              <div className="text-xs font-bold bg-muted/50 px-3 py-1.5 rounded-lg border border-border/60">
+                Operating Hours: {hospitalOpenTime} - {hospitalCloseTime}
+              </div>
+            </div>
             
-            <div className="relative border-l-2 border-border/60 ml-4 pl-6 space-y-8">
-              {todayAppointments.length > 0 ? todayAppointments.map((apt) => (
-                <div key={apt.id} className="relative group cursor-pointer" onClick={() => handleOpenDetail(apt)}>
+            <div className="relative border-l-2 border-border/60 ml-4 pl-6 space-y-4">
+              {timelineGrid.map((slot, i) => (
+                <div key={i} className="relative group">
                   {/* Timeline Dot */}
-                  <div className={`absolute -left-[31px] top-1 h-3.5 w-3.5 rounded-full ring-4 ring-background ${apt.type === 'Emergency' ? 'bg-red-500 animate-pulse' : 'bg-primary'}`}></div>
+                  <div className={`absolute -left-[31px] top-4 h-3.5 w-3.5 rounded-full ring-4 ring-background ${slot.appointments.length > 0 ? (slot.appointments.some(a => a.type === 'Emergency' || a.type === 'ICU') ? 'bg-red-500 animate-pulse' : 'bg-primary') : 'bg-muted-foreground/30'}`}></div>
                   
-                  {/* Appointment Card */}
-                  <div className={`p-4 rounded-2xl border bg-background/40 hover:bg-muted/30 transition-all ${getTypeStyle(apt.type).replace('bg-', 'hover:bg-').replace('text-', '')}`}>
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                      
-                      <div className="flex gap-4">
-                        <div className="hidden sm:flex flex-col items-center justify-center p-3 rounded-xl bg-muted/50 border border-border/40 h-16 w-20 shrink-0">
-                          <span className="font-bold text-sm text-foreground">{apt.time.split(" ")[0]}</span>
-                          <span className="text-[10px] font-bold text-muted-foreground">{apt.time.split(" ")[1]}</span>
-                        </div>
-                        
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-extrabold text-base text-foreground">{apt.patientName}</h4>
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${getTypeStyle(apt.type)}`}>
-                              {apt.type}
-                            </span>
-                            {apt.type === "Emergency" && <AlertTriangle className="h-3.5 w-3.5 text-red-500 animate-pulse" />}
+                  {slot.appointments.length > 0 ? (
+                    slot.appointments.map(apt => (
+                      <div key={apt.id} className={`p-4 rounded-2xl border bg-background/40 hover:bg-muted/30 transition-all cursor-pointer mb-3 ${getTypeStyle(apt.type).replace('bg-', 'hover:bg-').replace('text-', '')}`} onClick={() => handleOpenDetail(apt)}>
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                          <div className="flex gap-4">
+                            <div className="hidden sm:flex flex-col items-center justify-center p-3 rounded-xl bg-muted/50 border border-border/40 h-16 w-20 shrink-0">
+                              <span className="font-bold text-sm text-foreground">{apt.time.split(" ")[0]}</span>
+                              <span className="text-[10px] font-bold text-muted-foreground">{apt.time.split(" ")[1]}</span>
+                            </div>
+                            
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="font-extrabold text-base text-foreground">{apt.patientName}</h4>
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border ${getTypeStyle(apt.type)}`}>
+                                  {apt.type}
+                                </span>
+                                {(apt.type === "Emergency" || apt.type === "ICU") && <AlertTriangle className="h-3.5 w-3.5 text-red-500 animate-pulse" />}
+                              </div>
+                              
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1.5">
+                                <span className="flex items-center gap-1 font-medium text-foreground"><Stethoscope className="h-3 w-3" /> {apt.doctorName}</span>
+                                <span>•</span>
+                                <span>{apt.diagnosis}</span>
+                              </div>
+                            </div>
                           </div>
                           
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1.5">
-                            <span className="flex items-center gap-1 font-medium text-foreground"><Stethoscope className="h-3 w-3" /> {apt.doctorName}</span>
-                            <span>•</span>
-                            <span>{apt.diagnosis}</span>
+                          <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2">
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusStyle(apt.status)}`}>
+                              {apt.status}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground font-mono flex items-center gap-1"><Clock className="h-3 w-3" /> {apt.treatmentDuration}</span>
                           </div>
                         </div>
                       </div>
-                      
-                      <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusStyle(apt.status)}`}>
-                          {apt.status}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground font-mono flex items-center gap-1"><Clock className="h-3 w-3" /> {apt.treatmentDuration}</span>
+                    ))
+                  ) : (
+                    <div 
+                      className="p-3 rounded-xl border border-dashed border-border/60 bg-muted/10 hover:bg-muted/30 transition-all cursor-pointer flex items-center justify-between"
+                      onClick={() => {
+                        handleOpenAdd();
+                        setFormData(prev => ({ ...prev, date: todayStr, time: slot.time }));
+                      }}
+                    >
+                      <div className="flex items-center gap-4 text-muted-foreground">
+                        <div className="w-16 font-mono text-xs font-bold text-right">{slot.time}</div>
+                        <div className="text-xs font-medium italic">Available Slot</div>
                       </div>
-                      
+                      <Plus className="h-4 w-4 text-muted-foreground opacity-50 group-hover:opacity-100" />
                     </div>
-                  </div>
+                  )}
                 </div>
-              )) : (
-                <div className="text-muted-foreground text-sm py-4">No appointments scheduled for today.</div>
-              )}
+              ))}
             </div>
           </div>
         )}
@@ -535,31 +624,41 @@ export function AppointmentsModule({ initialSearchQuery = "" }: { initialSearchQ
                   <label className="text-xs font-semibold text-muted-foreground">Time</label>
                   <select 
                     required 
-                    value={formData.time || "10:00 AM"} 
+                    disabled={!formData.date || !formData.doctorId}
+                    value={formData.time || ""} 
                     onChange={e => setFormData({...formData, time: e.target.value})} 
-                    className="w-full h-11 px-4 bg-background/50 border border-border/60 rounded-xl text-sm focus:outline-none focus:border-primary text-foreground"
+                    className="w-full h-11 px-4 bg-background/50 border border-border/60 rounded-xl text-sm focus:outline-none focus:border-primary text-foreground disabled:opacity-50"
                   >
-                    <option value="09:00 AM">09:00 AM</option>
-                    <option value="09:30 AM">09:30 AM</option>
-                    <option value="10:00 AM">10:00 AM</option>
-                    <option value="10:30 AM">10:30 AM</option>
-                    <option value="11:00 AM">11:00 AM</option>
-                    <option value="11:30 AM">11:30 AM</option>
-                    <option value="12:00 PM">12:00 PM</option>
-                    <option value="12:30 PM">12:30 PM</option>
-                    <option value="02:00 PM">02:00 PM</option>
-                    <option value="02:30 PM">02:30 PM</option>
-                    <option value="03:00 PM">03:00 PM</option>
-                    <option value="03:30 PM">03:30 PM</option>
-                    <option value="04:00 PM">04:00 PM</option>
-                    <option value="04:30 PM">04:30 PM</option>
-                    <option value="05:00 PM">05:00 PM</option>
+                    <option value="">{(!formData.date || !formData.doctorId) ? "Select Date & Doctor first" : "Select Time Slot"}</option>
+                    {formData.date && formData.doctorId && generateTimeSlots(formData.date, formData.doctorId).map(slot => (
+                      <option key={slot.time} value={slot.time} disabled={!slot.available}>
+                        {slot.time} {!slot.available ? `(Booked by ${slot.conflictPatient})` : ""}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div className="space-y-1.5 md:col-span-2 pt-2 border-t border-border/40">
                   <h4 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2"><Activity className="h-4 w-4 text-primary" /> Medical Details (Optional)</h4>
                 </div>
+
+                {formData.type === "ICU" && (
+                  <>
+                    <div className="space-y-1.5 md:col-span-2 p-4 bg-red-500/5 border border-red-500/20 rounded-xl">
+                      <h5 className="text-xs font-bold text-red-500 mb-3 flex items-center gap-1"><Activity className="h-3 w-3" /> ICU Patient Tracking</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-muted-foreground">Condition / Stability Index</label>
+                          <input type="text" placeholder="e.g. Critical, SpO2 89%, BP 90/60" value={formData.icuCondition || ""} onChange={e => setFormData({...formData, icuCondition: e.target.value})} className="w-full h-10 px-3 bg-background border border-red-500/30 rounded-lg text-sm focus:outline-none focus:border-red-500" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold text-muted-foreground">Assigned Critical Care Nurse</label>
+                          <input type="text" placeholder="Nurse Name / ID" value={formData.nurseAssigned || ""} onChange={e => setFormData({...formData, nurseAssigned: e.target.value})} className="w-full h-10 px-3 bg-background border border-red-500/30 rounded-lg text-sm focus:outline-none focus:border-red-500" />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <div className="space-y-1.5 md:col-span-2">
                   <label className="text-xs font-semibold text-muted-foreground">Diagnosis / Reason</label>

@@ -7,11 +7,11 @@ const VALID_TYPES = ["REGULAR", "EMERGENCY", "ICU", "FOLLOW_UP"];
 const VALID_STATUSES = ["Scheduled", "In Progress", "Completed", "Cancelled"];
 
 // GET /api/appointments/:id
-export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const authRes = await protect(req);
   if (authRes.error) return authErrorResponse(authRes.error, authRes.status);
   const hospitalId = authRes.hospital.id;
-  const { id } = await context.params;
+  const { id } = await params;
 
   try {
     const { data: appointment, error } = await supabase
@@ -31,11 +31,11 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
 }
 
 // PUT /api/appointments/:id
-export async function PUT(req: Request, context: { params: Promise<{ id: string }> }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const authRes = await protect(req);
   if (authRes.error) return authErrorResponse(authRes.error, authRes.status);
   const hospitalId = authRes.hospital.id;
-  const { id } = await context.params;
+  const { id } = await params;
 
   try {
     const updateFields = await req.json().catch(() => ({}));
@@ -68,11 +68,11 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
 }
 
 // DELETE /api/appointments/:id
-export async function DELETE(req: Request, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const authRes = await protect(req);
   if (authRes.error) return authErrorResponse(authRes.error, authRes.status);
   const hospitalId = authRes.hospital.id;
-  const { id } = await context.params;
+  const { id } = await params;
 
   try {
     const { data: existing, error: checkErr } = await supabase.from("appointments").select("id").eq("id", id).eq("hospital_id", hospitalId).single();
